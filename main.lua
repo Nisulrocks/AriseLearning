@@ -77,22 +77,16 @@ local function findEnemyInstances()
     
     if not enemyFolder then return nil end
     
-    -- Check if Server folder exists within the enemy folder
+    -- Check if Client folder exists within the enemy folder (prioritize Client over Server)
+    local clientFolder = enemyFolder:FindFirstChild("Client")
+    if clientFolder then
+        return clientFolder
+    end
+    
+    -- If no Client folder, check for Server folder as fallback
     local serverFolder = enemyFolder:FindFirstChild("Server")
     if serverFolder then
         return serverFolder
-    end
-    
-    -- If no Server folder, check for any folder with actual enemy models
-    for _, child in pairs(enemyFolder:GetChildren()) do
-        if child:IsA("Folder") or child:IsA("Model") then
-            -- Check if this folder contains models with humanoids
-            for _, potential in pairs(child:GetChildren()) do
-                if potential:IsA("Model") and potential:FindFirstChildOfClass("Humanoid") then
-                    return child
-                end
-            end
-        end
     end
     
     -- If no specific subfolder has enemies, use the main enemy folder
