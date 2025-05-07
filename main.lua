@@ -280,15 +280,79 @@ local EnemyDropdown = MainTab:CreateDropdown({
             if isFarming then
                 -- Temporarily stop farming
                 local wasActive = isFarming
+                
+                -- Set a flag to prevent callback issues
+                local switchingEnemy = true
+                
+                -- Stop the current farming loop
                 isFarming = false
                 
                 -- Wait a moment for the current farming loop to end
-                task.wait(0.2)
+                task.wait(0.3)
                 
-                -- Restart farming with the new enemy
+                -- Restart farming with the new enemy without using the toggle
                 if wasActive then
                     isFarming = true
-                    FarmingToggle:Set(true)
+                    
+                    -- Start a new farming loop directly instead of using the toggle
+                    spawn(function()
+                        while isFarming and task.wait(0.1) do -- Small delay to prevent excessive teleporting
+                            -- Get the enemy directly from the array if we have an index
+                            local enemy = nil
+                            if type(selectedEnemy) == "number" and enemyModels[selectedEnemy] then
+                                enemy = enemyModels[selectedEnemy]
+                            else
+                                enemy = findEnemy(selectedEnemy)
+                            end
+                            
+                            if enemy and game.Players.LocalPlayer.Character then
+                                local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("UpperTorso") or enemy.PrimaryPart
+                                local playerRoot = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                
+                                if enemyRoot and playerRoot then
+                                    -- Try to teleport using different methods
+                                    pcall(function()
+                                        -- Method 1: Direct CFrame assignment
+                                        playerRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, farmDistance)
+                                    end)
+                                    
+                                    -- Auto attack using the provided remote
+                                    local humanoid = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                                    if humanoid then
+                                        -- Face the enemy
+                                        humanoid.AutoRotate = false
+                                        playerRoot.CFrame = CFrame.lookAt(playerRoot.Position, enemyRoot.Position)
+                                        
+                                        -- Get the enemy's unique ID - use the raw name as the ID
+                                        local enemyId = enemy.Name
+                                        
+                                        -- Fire the attack remote with the raw enemy ID
+                                        local args = {
+                                            {
+                                                {
+                                                    Event = "PunchAttack",
+                                                    Enemy = enemyId
+                                                },
+                                                "\005"
+                                            }
+                                        }
+                                        
+                                        pcall(function()
+                                            game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+                                        end)
+                                        
+                                        -- Add a small delay to prevent spamming the remote too quickly
+                                        task.wait(0.1)
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Reset auto-rotate when farming stops
+                        if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                            game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid").AutoRotate = true
+                        end
+                    end)
                 end
             end
         end
