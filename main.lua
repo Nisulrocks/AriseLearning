@@ -275,6 +275,22 @@ local EnemyDropdown = MainTab:CreateDropdown({
             
             -- Store the index instead of the name
             selectedEnemy = selectedIndex
+            
+            -- If already farming, restart the farming process with the new enemy
+            if isFarming then
+                -- Temporarily stop farming
+                local wasActive = isFarming
+                isFarming = false
+                
+                -- Wait a moment for the current farming loop to end
+                task.wait(0.2)
+                
+                -- Restart farming with the new enemy
+                if wasActive then
+                    isFarming = true
+                    FarmingToggle:Set(true)
+                end
+            end
         end
     end,
 })
