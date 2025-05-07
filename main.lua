@@ -188,7 +188,7 @@ local function findEnemy(selection)
         Rayfield:Notify({
             Title = "Debug",
             Content = "Using only available enemy as fallback",
-            Duration: 1,
+            Duration = 1,
         })
         return enemyModels[1]
     end
