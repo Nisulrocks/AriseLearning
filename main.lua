@@ -333,24 +333,8 @@ local FarmingToggle = MainTab:CreateToggle({
                                     humanoid.AutoRotate = false
                                     playerRoot.CFrame = CFrame.lookAt(playerRoot.Position, enemyRoot.Position)
                                     
-                                    -- Get the enemy's unique ID
-                                    local enemyId = enemy:GetAttribute("Id") or enemy:GetAttribute("EnemyId") or enemy:GetAttribute("UniqueId")
-                                    
-                                    -- If we can't find an ID attribute, try to use the enemy's name or other identifiers
-                                    if not enemyId then
-                                        -- Try to find any attribute that might be an ID
-                                        for _, attrName in pairs({"id", "ID", "uid", "UUID", "GUID"}) do
-                                            if enemy:GetAttribute(attrName) then
-                                                enemyId = enemy:GetAttribute(attrName)
-                                                break
-                                            end
-                                        end
-                                        
-                                        -- If still no ID, use instance ID or name
-                                        if not enemyId then
-                                            enemyId = tostring(enemy:GetDebugId()) or enemy.Name
-                                        end
-                                    end
+                                    -- Get the enemy's unique ID - use the raw name as the ID
+                                    local enemyId = enemy.Name
                                     
                                     -- Debug ID
                                     Rayfield:Notify({
@@ -359,7 +343,7 @@ local FarmingToggle = MainTab:CreateToggle({
                                         Duration = 1,
                                     })
                                     
-                                    -- Fire the attack remote with the enemy ID
+                                    -- Fire the attack remote with the raw enemy ID
                                     local args = {
                                         {
                                             {
