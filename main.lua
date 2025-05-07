@@ -139,11 +139,23 @@ local function findEnemy(enemyName)
         targetFolder = findEnemyInstances()
     end
     
-    if not targetFolder then return nil end
+    if not targetFolder then 
+        Rayfield:Notify({
+            Title = "Debug",
+            Content = "Target folder not found",
+            Duration = 3,
+        })
+        return nil 
+    end
     
     -- First check direct children
     local enemy = targetFolder:FindFirstChild(enemyName)
     if enemy and enemy:IsA("Model") then
+        Rayfield:Notify({
+            Title = "Debug",
+            Content = "Enemy found directly: " .. tostring(enemyName),
+            Duration = 1,
+        })
         return enemy
     end
     
@@ -152,13 +164,45 @@ local function findEnemy(enemyName)
         if container:IsA("Folder") or container:IsA("Model") then
             enemy = container:FindFirstChild(enemyName)
             if enemy and enemy:IsA("Model") then
+                Rayfield:Notify({
+                    Title = "Debug",
+                    Content = "Enemy found in container: " .. tostring(container.Name),
+                    Duration = 1,
+                })
                 return enemy
             end
         end
     end
     
+    -- If still not found, try a more aggressive search
+    for _, obj in pairs(targetFolder:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == enemyName then
+            Rayfield:Notify({
+                Title = "Debug",
+                Content = "Enemy found in descendants",
+                Duration = 1,
+            })
+            return obj
+        end
+    end
+    
     -- If still not found, search the entire workspace as a last resort
-    return workspace:FindFirstChild(enemyName, true)
+    local workspaceEnemy = workspace:FindFirstChild(enemyName, true)
+    if workspaceEnemy then
+        Rayfield:Notify({
+            Title = "Debug",
+            Content = "Enemy found in workspace",
+            Duration = 1,
+        })
+        return workspaceEnemy
+    end
+    
+    Rayfield:Notify({
+        Title = "Debug",
+        Content = "Enemy not found: " .. tostring(enemyName),
+        Duration = 3,
+    })
+    return nil
 end
 
 -- Function to refresh the enemy list
@@ -243,8 +287,18 @@ local FarmingToggle = MainTab:CreateToggle({
                             local playerRoot = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                             
                             if enemyRoot and playerRoot then
-                                -- Teleport to enemy
-                                playerRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, farmDistance)
+                                -- Debug teleport
+                                Rayfield:Notify({
+                                    Title = "Debug",
+                                    Content = "Teleporting to enemy",
+                                    Duration = 1,
+                                })
+                                
+                                -- Try to teleport using different methods
+                                pcall(function()
+                                    -- Method 1: Direct CFrame assignment
+                                    playerRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, farmDistance)
+                                end)
                                 
                                 -- Auto attack using the provided remote
                                 local humanoid = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -258,9 +312,26 @@ local FarmingToggle = MainTab:CreateToggle({
                                     
                                     -- If we can't find an ID attribute, try to use the enemy's name or other identifiers
                                     if not enemyId then
-                                        -- Some games use the instance ID as a fallback
-                                        enemyId = tostring(enemy:GetDebugId()) or enemy.Name
+                                        -- Try to find any attribute that might be an ID
+                                        for _, attrName in pairs({"id", "ID", "uid", "UUID", "GUID"}) do
+                                            if enemy:GetAttribute(attrName) then
+                                                enemyId = enemy:GetAttribute(attrName)
+                                                break
+                                            end
+                                        end
+                                        
+                                        -- If still no ID, use instance ID or name
+                                        if not enemyId then
+                                            enemyId = tostring(enemy:GetDebugId()) or enemy.Name
+                                        end
                                     end
+                                    
+                                    -- Debug ID
+                                    Rayfield:Notify({
+                                        Title = "Debug",
+                                        Content = "Using enemy ID: " .. tostring(enemyId),
+                                        Duration = 1,
+                                    })
                                     
                                     -- Fire the attack remote with the enemy ID
                                     local args = {
@@ -273,12 +344,32 @@ local FarmingToggle = MainTab:CreateToggle({
                                         }
                                     }
                                     
-                                    game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+                                    pcall(function()
+                                        game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+                                    end)
                                     
                                     -- Add a small delay to prevent spamming the remote too quickly
                                     task.wait(0.1)
+                                else
+                                    Rayfield:Notify({
+                                        Title = "Debug",
+                                        Content = "Humanoid not found",
+                                        Duration = 1,
+                                    })
                                 end
+                            else
+                                Rayfield:Notify({
+                                    Title = "Debug",
+                                    Content = enemyRoot and "Player root not found" or "Enemy root not found",
+                                    Duration = 1,
+                                })
                             end
+                        else
+                            Rayfield:Notify({
+                                Title = "Debug",
+                                Content = enemy and "Player character not found" or "Enemy not found",
+                                Duration = 1,
+                            })
                         end
                     end
                     
