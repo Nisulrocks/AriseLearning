@@ -135,6 +135,13 @@ end
 
 -- Function to find a specific enemy in the workspace
 local function findEnemy(enemyName)
+    -- Debug the enemy name we're looking for
+    Rayfield:Notify({
+        Title = "Debug Search",
+        Content = "Looking for enemy: " .. tostring(enemyName),
+        Duration = 2,
+    })
+
     if not targetFolder then
         targetFolder = findEnemyInstances()
     end
@@ -148,6 +155,13 @@ local function findEnemy(enemyName)
         return nil 
     end
     
+    -- Print the path to help debug
+    Rayfield:Notify({
+        Title = "Debug Path",
+        Content = "Searching in: " .. targetFolder:GetFullName(),
+        Duration = 2,
+    })
+    
     -- First check direct children
     local enemy = targetFolder:FindFirstChild(enemyName)
     if enemy and enemy:IsA("Model") then
@@ -159,9 +173,22 @@ local function findEnemy(enemyName)
         return enemy
     end
     
+    -- If not found, try case-insensitive search
+    for _, child in pairs(targetFolder:GetChildren()) do
+        if child:IsA("Model") and string.lower(child.Name) == string.lower(enemyName) then
+            Rayfield:Notify({
+                Title = "Debug",
+                Content = "Enemy found with case-insensitive match",
+                Duration = 1,
+            })
+            return child
+        end
+    end
+    
     -- If not found, search deeper
     for _, container in pairs(targetFolder:GetChildren()) do
         if container:IsA("Folder") or container:IsA("Model") then
+            -- Try exact match
             enemy = container:FindFirstChild(enemyName)
             if enemy and enemy:IsA("Model") then
                 Rayfield:Notify({
@@ -171,18 +198,52 @@ local function findEnemy(enemyName)
                 })
                 return enemy
             end
+            
+            -- Try case-insensitive match
+            for _, child in pairs(container:GetChildren()) do
+                if child:IsA("Model") and string.lower(child.Name) == string.lower(enemyName) then
+                    Rayfield:Notify({
+                        Title = "Debug",
+                        Content = "Enemy found in container with case-insensitive match",
+                        Duration = 1,
+                    })
+                    return child
+                end
+            end
         end
     end
     
-    -- If still not found, try a more aggressive search
+    -- If still not found, try a more aggressive search with partial matching
+    Rayfield:Notify({
+        Title = "Debug",
+        Content = "Trying aggressive search for: " .. tostring(enemyName),
+        Duration = 1,
+    })
+    
+    -- Try to find any model that contains the enemy name
     for _, obj in pairs(targetFolder:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == enemyName then
-            Rayfield:Notify({
-                Title = "Debug",
-                Content = "Enemy found in descendants",
-                Duration = 1,
-            })
-            return obj
+        if obj:IsA("Model") then
+            -- Check if the model name contains our search term or vice versa
+            if string.find(string.lower(obj.Name), string.lower(enemyName)) or 
+               string.find(string.lower(enemyName), string.lower(obj.Name)) then
+                Rayfield:Notify({
+                    Title = "Debug",
+                    Content = "Enemy found with partial match: " .. obj.Name,
+                    Duration = 1,
+                })
+                return obj
+            end
+            
+            -- Check if it has a humanoid (likely an enemy)
+            if obj:FindFirstChildOfClass("Humanoid") then
+                Rayfield:Notify({
+                    Title = "Debug",
+                    Content = "Found potential enemy with humanoid: " .. obj.Name,
+                    Duration = 1,
+                })
+                -- Only return if we're desperate (no exact matches found)
+                return obj
+            end
         end
     end
     
@@ -196,6 +257,26 @@ local function findEnemy(enemyName)
         })
         return workspaceEnemy
     end
+    
+    -- List all models in the target folder to help debug
+    local modelNames = "Models in folder: "
+    local count = 0
+    for _, obj in pairs(targetFolder:GetChildren()) do
+        if obj:IsA("Model") then
+            modelNames = modelNames .. obj.Name .. ", "
+            count = count + 1
+            if count >= 5 then
+                modelNames = modelNames .. "and more..."
+                break
+            end
+        end
+    end
+    
+    Rayfield:Notify({
+        Title = "Debug Models",
+        Content = modelNames,
+        Duration = 3,
+    })
     
     Rayfield:Notify({
         Title = "Debug",
