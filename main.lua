@@ -241,8 +241,8 @@ local EnemyDropdown = MainTab:CreateDropdown({
     CurrentOption = enemyNames[1],
     Flag = "EnemyToFarm",
     Callback = function(Value)
-        -- Ensure Value is a string
-        selectedEnemy = tostring(Value)
+        -- Store the selection directly without conversion
+        selectedEnemy = Value
         
         -- Debug the value type
         Rayfield:Notify({
@@ -251,18 +251,30 @@ local EnemyDropdown = MainTab:CreateDropdown({
             Duration = 2,
         })
         
-        if selectedEnemy == "No enemies found" then
+        if tostring(selectedEnemy) == "No enemies found" then
             Rayfield:Notify({
                 Title = "No Enemies Found",
                 Content = "Try refreshing the list or join a game with enemies",
                 Duration = 5,
             })
         else
+            -- Store the index of the selected enemy
+            local selectedIndex = 1
+            for i, name in ipairs(enemyNames) do
+                if tostring(Value) == tostring(name) then
+                    selectedIndex = i
+                    break
+                end
+            end
+            
             Rayfield:Notify({
                 Title = "Enemy Selected",
-                Content = "Selected: " .. tostring(selectedEnemy),
+                Content = "Selected index: " .. selectedIndex,
                 Duration = 2,
             })
+            
+            -- Store the index instead of the name
+            selectedEnemy = selectedIndex
         end
     end,
 })
@@ -276,16 +288,26 @@ local FarmingToggle = MainTab:CreateToggle({
         isFarming = Value
         if Value then
             if selectedEnemy and selectedEnemy ~= "No enemies found" then
+                local selectedEnemyName = type(selectedEnemy) == "number" and 
+                                         (enemyNames[selectedEnemy] or "Unknown") or 
+                                         tostring(selectedEnemy)
+                
                 Rayfield:Notify({
                     Title = "Farming Started",
-                    Content = "Now farming: " .. tostring(selectedEnemy),
+                    Content = "Now farming: " .. selectedEnemyName,
                     Duration = 3,
                 })
                 -- Start farming loop
                 spawn(function()
                     while isFarming and task.wait(0.1) do -- Small delay to prevent excessive teleporting
-                        -- Farming logic goes here
-                        local enemy = findEnemy(selectedEnemy)
+                        -- Get the enemy directly from the array if we have an index
+                        local enemy = nil
+                        if type(selectedEnemy) == "number" and enemyModels[selectedEnemy] then
+                            enemy = enemyModels[selectedEnemy]
+                        else
+                            enemy = findEnemy(selectedEnemy)
+                        end
+                        
                         if enemy and game.Players.LocalPlayer.Character then
                             local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("UpperTorso") or enemy.PrimaryPart
                             local playerRoot = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
