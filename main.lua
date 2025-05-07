@@ -284,7 +284,7 @@ local EnemyDropdown = MainTab:CreateDropdown({
                 Rayfield:Notify({
                     Title = "Target Updated",
                     Content = "Now targeting: " .. tostring(enemyNames[selectedIndex]),
-                    Duration: 2,
+                    Duration = 2,
                 })
             end
         end
