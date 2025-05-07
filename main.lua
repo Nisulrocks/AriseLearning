@@ -33,6 +33,7 @@ local mainFolder = workspace:FindFirstChild("__Main") -- First find the __Main f
 local enemyFolder = mainFolder and mainFolder:FindFirstChild("__Enemies") -- Then find __Enemies inside __Main
 local enemyNames = {"No enemies found"} -- Default value
 local targetFolder = nil -- Will store the actual folder containing enemy instances (Server or direct)
+local enemyModels = {} -- Store enemy models by their index in the dropdown
 
 -- Function to find actual enemy instances
 local function findEnemyInstances()
@@ -96,6 +97,7 @@ end
 -- Function to get all enemy names
 local function getEnemyNames()
     local names = {}
+    enemyModels = {} -- Reset the enemy models table
     
     if not targetFolder then
         targetFolder = findEnemyInstances()
@@ -105,8 +107,10 @@ local function getEnemyNames()
         -- First, check direct children of the target folder
         for _, enemy in pairs(targetFolder:GetChildren()) do
             if enemy:IsA("Model") and (enemy:FindFirstChildOfClass("Humanoid") or enemy:FindFirstChild("HumanoidRootPart")) then
-                -- Convert name to string to ensure it's not a table
-                table.insert(names, tostring(enemy.Name))
+                -- Store the actual model reference
+                table.insert(enemyModels, enemy)
+                -- Use index as identifier and enemy name as display
+                table.insert(names, "#" .. #enemyModels .. ": " .. tostring(enemy.Name))
             end
         end
         
@@ -116,8 +120,10 @@ local function getEnemyNames()
                 if container:IsA("Folder") or container:IsA("Model") then
                     for _, enemy in pairs(container:GetChildren()) do
                         if enemy:IsA("Model") and (enemy:FindFirstChildOfClass("Humanoid") or enemy:FindFirstChild("HumanoidRootPart")) then
-                            -- Convert name to string to ensure it's not a table
-                            table.insert(names, tostring(enemy.Name))
+                            -- Store the actual model reference
+                            table.insert(enemyModels, enemy)
+                            -- Use index as identifier and enemy name as display
+                            table.insert(names, "#" .. #enemyModels .. ": " .. tostring(enemy.Name))
                         end
                     end
                 end
@@ -133,154 +139,35 @@ local function getEnemyNames()
     return names
 end
 
--- Function to find a specific enemy in the workspace
-local function findEnemy(enemyName)
-    -- Debug the enemy name we're looking for
-    Rayfield:Notify({
-        Title = "Debug Search",
-        Content = "Looking for enemy: " .. tostring(enemyName),
-        Duration = 2,
-    })
-
-    if not targetFolder then
-        targetFolder = findEnemyInstances()
-    end
+-- Function to find a specific enemy by dropdown selection
+local function findEnemy(selection)
+    -- Extract the index from the selection string (format: "#X: Name")
+    local index = tonumber(string.match(selection, "#(%d+):"))
     
-    if not targetFolder then 
+    if not index then
         Rayfield:Notify({
             Title = "Debug",
-            Content = "Target folder not found",
+            Content = "Invalid selection format: " .. tostring(selection),
             Duration = 3,
         })
-        return nil 
+        return nil
     end
     
-    -- Print the path to help debug
-    Rayfield:Notify({
-        Title = "Debug Path",
-        Content = "Searching in: " .. targetFolder:GetFullName(),
-        Duration = 2,
-    })
+    -- Get the enemy model directly from our stored array
+    local enemy = enemyModels[index]
     
-    -- First check direct children
-    local enemy = targetFolder:FindFirstChild(enemyName)
-    if enemy and enemy:IsA("Model") then
+    if enemy then
         Rayfield:Notify({
             Title = "Debug",
-            Content = "Enemy found directly: " .. tostring(enemyName),
+            Content = "Enemy found by index: " .. tostring(enemy.Name),
             Duration = 1,
         })
         return enemy
     end
     
-    -- If not found, try case-insensitive search
-    for _, child in pairs(targetFolder:GetChildren()) do
-        if child:IsA("Model") and string.lower(child.Name) == string.lower(enemyName) then
-            Rayfield:Notify({
-                Title = "Debug",
-                Content = "Enemy found with case-insensitive match",
-                Duration = 1,
-            })
-            return child
-        end
-    end
-    
-    -- If not found, search deeper
-    for _, container in pairs(targetFolder:GetChildren()) do
-        if container:IsA("Folder") or container:IsA("Model") then
-            -- Try exact match
-            enemy = container:FindFirstChild(enemyName)
-            if enemy and enemy:IsA("Model") then
-                Rayfield:Notify({
-                    Title = "Debug",
-                    Content = "Enemy found in container: " .. tostring(container.Name),
-                    Duration = 1,
-                })
-                return enemy
-            end
-            
-            -- Try case-insensitive match
-            for _, child in pairs(container:GetChildren()) do
-                if child:IsA("Model") and string.lower(child.Name) == string.lower(enemyName) then
-                    Rayfield:Notify({
-                        Title = "Debug",
-                        Content = "Enemy found in container with case-insensitive match",
-                        Duration = 1,
-                    })
-                    return child
-                end
-            end
-        end
-    end
-    
-    -- If still not found, try a more aggressive search with partial matching
     Rayfield:Notify({
         Title = "Debug",
-        Content = "Trying aggressive search for: " .. tostring(enemyName),
-        Duration = 1,
-    })
-    
-    -- Try to find any model that contains the enemy name
-    for _, obj in pairs(targetFolder:GetDescendants()) do
-        if obj:IsA("Model") then
-            -- Check if the model name contains our search term or vice versa
-            if string.find(string.lower(obj.Name), string.lower(enemyName)) or 
-               string.find(string.lower(enemyName), string.lower(obj.Name)) then
-                Rayfield:Notify({
-                    Title = "Debug",
-                    Content = "Enemy found with partial match: " .. obj.Name,
-                    Duration = 1,
-                })
-                return obj
-            end
-            
-            -- Check if it has a humanoid (likely an enemy)
-            if obj:FindFirstChildOfClass("Humanoid") then
-                Rayfield:Notify({
-                    Title = "Debug",
-                    Content = "Found potential enemy with humanoid: " .. obj.Name,
-                    Duration = 1,
-                })
-                -- Only return if we're desperate (no exact matches found)
-                return obj
-            end
-        end
-    end
-    
-    -- If still not found, search the entire workspace as a last resort
-    local workspaceEnemy = workspace:FindFirstChild(enemyName, true)
-    if workspaceEnemy then
-        Rayfield:Notify({
-            Title = "Debug",
-            Content = "Enemy found in workspace",
-            Duration = 1,
-        })
-        return workspaceEnemy
-    end
-    
-    -- List all models in the target folder to help debug
-    local modelNames = "Models in folder: "
-    local count = 0
-    for _, obj in pairs(targetFolder:GetChildren()) do
-        if obj:IsA("Model") then
-            modelNames = modelNames .. obj.Name .. ", "
-            count = count + 1
-            if count >= 5 then
-                modelNames = modelNames .. "and more..."
-                break
-            end
-        end
-    end
-    
-    Rayfield:Notify({
-        Title = "Debug Models",
-        Content = modelNames,
-        Duration = 3,
-    })
-    
-    Rayfield:Notify({
-        Title = "Debug",
-        Content = "Enemy not found: " .. tostring(enemyName),
+        Content = "Enemy not found by index: " .. tostring(index),
         Duration = 3,
     })
     return nil
