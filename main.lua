@@ -34,6 +34,8 @@ local enemyFolder = mainFolder and mainFolder:FindFirstChild("__Enemies") -- The
 local enemyNames = {"No enemies found"} -- Default value
 local targetFolder = nil -- Will store the actual folder containing enemy instances (Server or direct)
 local enemyModels = {} -- Store enemy models by their index in the dropdown
+local currentFarmingLoop = nil -- Reference to the current farming loop
+local farmDistance = 5 -- Initialize the farm distance
 
 -- Function to find actual enemy instances
 local function findEnemyInstances()
@@ -242,7 +244,7 @@ local EnemyDropdown = MainTab:CreateDropdown({
     Flag = "EnemyToFarm",
     Callback = function(Value)
         -- Store the selection directly without conversion
-        selectedEnemy = Value
+        local oldEnemy = selectedEnemy
         
         -- Debug the value type
         Rayfield:Notify({
@@ -251,12 +253,13 @@ local EnemyDropdown = MainTab:CreateDropdown({
             Duration = 2,
         })
         
-        if tostring(selectedEnemy) == "No enemies found" then
+        if tostring(Value) == "No enemies found" then
             Rayfield:Notify({
                 Title = "No Enemies Found",
                 Content = "Try refreshing the list or join a game with enemies",
                 Duration = 5,
             })
+            return
         else
             -- Store the index of the selected enemy
             local selectedIndex = 1
@@ -276,88 +279,118 @@ local EnemyDropdown = MainTab:CreateDropdown({
             -- Store the index instead of the name
             selectedEnemy = selectedIndex
             
-            -- If already farming, restart the farming process with the new enemy
-            if isFarming then
-                -- Temporarily stop farming
-                local wasActive = isFarming
-                
-                -- Set a flag to prevent callback issues
-                local switchingEnemy = true
-                
-                -- Stop the current farming loop
-                isFarming = false
-                
-                -- Wait a moment for the current farming loop to end
-                task.wait(0.3)
-                
-                -- Restart farming with the new enemy without using the toggle
-                if wasActive then
-                    isFarming = true
-                    
-                    -- Start a new farming loop directly instead of using the toggle
-                    spawn(function()
-                        while isFarming and task.wait(0.1) do -- Small delay to prevent excessive teleporting
-                            -- Get the enemy directly from the array if we have an index
-                            local enemy = nil
-                            if type(selectedEnemy) == "number" and enemyModels[selectedEnemy] then
-                                enemy = enemyModels[selectedEnemy]
-                            else
-                                enemy = findEnemy(selectedEnemy)
-                            end
-                            
-                            if enemy and game.Players.LocalPlayer.Character then
-                                local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("UpperTorso") or enemy.PrimaryPart
-                                local playerRoot = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                
-                                if enemyRoot and playerRoot then
-                                    -- Try to teleport using different methods
-                                    pcall(function()
-                                        -- Method 1: Direct CFrame assignment
-                                        playerRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, farmDistance)
-                                    end)
-                                    
-                                    -- Auto attack using the provided remote
-                                    local humanoid = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                                    if humanoid then
-                                        -- Face the enemy
-                                        humanoid.AutoRotate = false
-                                        playerRoot.CFrame = CFrame.lookAt(playerRoot.Position, enemyRoot.Position)
-                                        
-                                        -- Get the enemy's unique ID - use the raw name as the ID
-                                        local enemyId = enemy.Name
-                                        
-                                        -- Fire the attack remote with the raw enemy ID
-                                        local args = {
-                                            {
-                                                {
-                                                    Event = "PunchAttack",
-                                                    Enemy = enemyId
-                                                },
-                                                "\005"
-                                            }
-                                        }
-                                        
-                                        pcall(function()
-                                            game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-                                        end)
-                                        
-                                        -- Add a small delay to prevent spamming the remote too quickly
-                                        task.wait(0.1)
-                                    end
-                                end
-                            end
-                        end
-                        
-                        -- Reset auto-rotate when farming stops
-                        if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                            game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid").AutoRotate = true
-                        end
-                    end)
-                end
+            -- If already farming, update the target without restarting the loop
+            if isFarming and oldEnemy ~= selectedEnemy then
+                Rayfield:Notify({
+                    Title = "Target Updated",
+                    Content = "Now targeting: " .. tostring(enemyNames[selectedIndex]),
+                    Duration: 2,
+                })
             end
         end
     end,
 })
+
+-- Function to start the farming loop
+local function startFarmingLoop()
+    -- If there's already a farming loop running, don't start another one
+    if currentFarmingLoop then return end
+    
+    -- Create a new farming loop
+    currentFarmingLoop = spawn(function()
+        while isFarming and task.wait(0.1) do -- Small delay to prevent excessive teleporting
+            -- Get the enemy directly from the array if we have an index
+            local enemy = nil
+            if type(selectedEnemy) == "number" and enemyModels[selectedEnemy] then
+                enemy = enemyModels[selectedEnemy]
+            else
+                enemy = findEnemy(selectedEnemy)
+            end
+            
+            if enemy and game.Players.LocalPlayer.Character then
+                local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("UpperTorso") or enemy.PrimaryPart
+                local playerRoot = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                
+                if enemyRoot and playerRoot then
+                    -- Debug teleport
+                    Rayfield:Notify({
+                        Title = "Debug",
+                        Content = "Teleporting to enemy: " .. enemy.Name,
+                        Duration = 1,
+                    })
+                    
+                    -- Try to teleport using different methods
+                    pcall(function()
+                        -- Method 1: Direct CFrame assignment
+                        playerRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, farmDistance)
+                    end)
+                    
+                    -- Auto attack using the provided remote
+                    local humanoid = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        -- Face the enemy
+                        humanoid.AutoRotate = false
+                        playerRoot.CFrame = CFrame.lookAt(playerRoot.Position, enemyRoot.Position)
+                        
+                        -- Get the enemy's unique ID - use the raw name as the ID
+                        local enemyId = enemy.Name
+                        
+                        -- Debug ID
+                        Rayfield:Notify({
+                            Title = "Debug",
+                            Content = "Using enemy ID: " .. tostring(enemyId),
+                            Duration = 1,
+                        })
+                        
+                        -- Fire the attack remote with the raw enemy ID
+                        local args = {
+                            {
+                                {
+                                    Event = "PunchAttack",
+                                    Enemy = enemyId
+                                },
+                                "\005"
+                            }
+                        }
+                        
+                        pcall(function()
+                            game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+                        end)
+                        
+                        -- Add a small delay to prevent spamming the remote too quickly
+                        task.wait(0.1)
+                    else
+                        Rayfield:Notify({
+                            Title = "Debug",
+                            Content = "Humanoid not found",
+                            Duration = 1,
+                        })
+                    end
+                else
+                    Rayfield:Notify({
+                        Title = "Debug",
+                        Content = enemyRoot and "Player root not found" or "Enemy root not found",
+                        Duration = 1,
+                    })
+                end
+            else
+                Rayfield:Notify({
+                    Title = "Debug",
+                    Content = enemy and "Player character not found" or "Enemy not found",
+                    Duration = 1,
+                })
+            end
+        end
+        
+        -- Reset auto-rotate when farming stops
+        if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid").AutoRotate = true
+        end
+        
+        -- Clear the reference to the farming loop
+        currentFarmingLoop = nil
+    end)
+end
 
 -- Create a toggle for farming
 local FarmingToggle = MainTab:CreateToggle({
@@ -377,97 +410,9 @@ local FarmingToggle = MainTab:CreateToggle({
                     Content = "Now farming: " .. selectedEnemyName,
                     Duration = 3,
                 })
-                -- Start farming loop
-                spawn(function()
-                    while isFarming and task.wait(0.1) do -- Small delay to prevent excessive teleporting
-                        -- Get the enemy directly from the array if we have an index
-                        local enemy = nil
-                        if type(selectedEnemy) == "number" and enemyModels[selectedEnemy] then
-                            enemy = enemyModels[selectedEnemy]
-                        else
-                            enemy = findEnemy(selectedEnemy)
-                        end
-                        
-                        if enemy and game.Players.LocalPlayer.Character then
-                            local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("UpperTorso") or enemy.PrimaryPart
-                            local playerRoot = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                            
-                            if enemyRoot and playerRoot then
-                                -- Debug teleport
-                                Rayfield:Notify({
-                                    Title = "Debug",
-                                    Content = "Teleporting to enemy",
-                                    Duration = 1,
-                                })
-                                
-                                -- Try to teleport using different methods
-                                pcall(function()
-                                    -- Method 1: Direct CFrame assignment
-                                    playerRoot.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, farmDistance)
-                                end)
-                                
-                                -- Auto attack using the provided remote
-                                local humanoid = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                                if humanoid then
-                                    -- Face the enemy
-                                    humanoid.AutoRotate = false
-                                    playerRoot.CFrame = CFrame.lookAt(playerRoot.Position, enemyRoot.Position)
-                                    
-                                    -- Get the enemy's unique ID - use the raw name as the ID
-                                    local enemyId = enemy.Name
-                                    
-                                    -- Debug ID
-                                    Rayfield:Notify({
-                                        Title = "Debug",
-                                        Content = "Using enemy ID: " .. tostring(enemyId),
-                                        Duration = 1,
-                                    })
-                                    
-                                    -- Fire the attack remote with the raw enemy ID
-                                    local args = {
-                                        {
-                                            {
-                                                Event = "PunchAttack",
-                                                Enemy = enemyId
-                                            },
-                                            "\005"
-                                        }
-                                    }
-                                    
-                                    pcall(function()
-                                        game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-                                    end)
-                                    
-                                    -- Add a small delay to prevent spamming the remote too quickly
-                                    task.wait(0.1)
-                                else
-                                    Rayfield:Notify({
-                                        Title = "Debug",
-                                        Content = "Humanoid not found",
-                                        Duration = 1,
-                                    })
-                                end
-                            else
-                                Rayfield:Notify({
-                                    Title = "Debug",
-                                    Content = enemyRoot and "Player root not found" or "Enemy root not found",
-                                    Duration = 1,
-                                })
-                            end
-                        else
-                            Rayfield:Notify({
-                                Title = "Debug",
-                                Content = enemy and "Player character not found" or "Enemy not found",
-                                Duration = 1,
-                            })
-                        end
-                    end
-                    
-                    -- Reset auto-rotate when farming stops
-                    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                        game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid").AutoRotate = true
-                    end
-                end)
+                
+                -- Start the farming loop
+                startFarmingLoop()
             else
                 Rayfield:Notify({
                     Title = "Error",
@@ -499,9 +444,6 @@ local DistanceSlider = MainTab:CreateSlider({
         farmDistance = Value
     end,
 })
-
--- Initialize the farm distance
-local farmDistance = 5
 
 -- Auto-refresh enemy list periodically
 spawn(function()
