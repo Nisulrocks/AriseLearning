@@ -141,33 +141,61 @@ end
 
 -- Function to find a specific enemy by dropdown selection
 local function findEnemy(selection)
-    -- Extract the index from the selection string (format: "#X: Name")
-    local index = tonumber(string.match(selection, "#(%d+):"))
-    
-    if not index then
-        Rayfield:Notify({
-            Title = "Debug",
-            Content = "Invalid selection format: " .. tostring(selection),
-            Duration = 3,
-        })
-        return nil
+    -- Debug the selection
+    Rayfield:Notify({
+        Title = "Debug Selection",
+        Content = "Type: " .. type(selection) .. ", Value: " .. tostring(selection),
+        Duration = 2,
+    })
+
+    -- Try to find the index in the enemyModels array
+    for index, model in ipairs(enemyModels) do
+        local indexString = "#" .. index .. ":"
+        
+        -- Check if the selection string contains our index pattern
+        if type(selection) == "string" and selection:find(indexString) then
+            Rayfield:Notify({
+                Title = "Debug",
+                Content = "Enemy found by pattern match: " .. tostring(model.Name),
+                Duration = 1,
+            })
+            return model
+        end
     end
     
-    -- Get the enemy model directly from our stored array
-    local enemy = enemyModels[index]
+    -- If we couldn't find by pattern, try to use the selection directly as an index
+    local directIndex = nil
     
-    if enemy then
+    -- If selection is a number, use it directly
+    if type(selection) == "number" then
+        directIndex = selection
+    -- If it's a string that might be a number, convert it
+    elseif type(selection) == "string" then
+        directIndex = tonumber(selection:match("(%d+)"))
+    end
+    
+    if directIndex and enemyModels[directIndex] then
         Rayfield:Notify({
             Title = "Debug",
-            Content = "Enemy found by index: " .. tostring(enemy.Name),
+            Content = "Enemy found by direct index: " .. directIndex,
             Duration = 1,
         })
-        return enemy
+        return enemyModels[directIndex]
+    end
+    
+    -- Last resort: if we have only one enemy, return it
+    if #enemyModels == 1 then
+        Rayfield:Notify({
+            Title = "Debug",
+            Content = "Using only available enemy as fallback",
+            Duration: 1,
+        })
+        return enemyModels[1]
     end
     
     Rayfield:Notify({
         Title = "Debug",
-        Content = "Enemy not found by index: " .. tostring(index),
+        Content = "Enemy not found for selection: " .. tostring(selection),
         Duration = 3,
     })
     return nil
@@ -215,6 +243,14 @@ local EnemyDropdown = MainTab:CreateDropdown({
     Callback = function(Value)
         -- Ensure Value is a string
         selectedEnemy = tostring(Value)
+        
+        -- Debug the value type
+        Rayfield:Notify({
+            Title = "Debug Value",
+            Content = "Type: " .. type(Value) .. ", Value: " .. tostring(Value),
+            Duration = 2,
+        })
+        
         if selectedEnemy == "No enemies found" then
             Rayfield:Notify({
                 Title = "No Enemies Found",
