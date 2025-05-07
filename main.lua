@@ -105,7 +105,8 @@ local function getEnemyNames()
         -- First, check direct children of the target folder
         for _, enemy in pairs(targetFolder:GetChildren()) do
             if enemy:IsA("Model") and (enemy:FindFirstChildOfClass("Humanoid") or enemy:FindFirstChild("HumanoidRootPart")) then
-                table.insert(names, enemy.Name)
+                -- Convert name to string to ensure it's not a table
+                table.insert(names, tostring(enemy.Name))
             end
         end
         
@@ -115,7 +116,8 @@ local function getEnemyNames()
                 if container:IsA("Folder") or container:IsA("Model") then
                     for _, enemy in pairs(container:GetChildren()) do
                         if enemy:IsA("Model") and (enemy:FindFirstChildOfClass("Humanoid") or enemy:FindFirstChild("HumanoidRootPart")) then
-                            table.insert(names, enemy.Name)
+                            -- Convert name to string to ensure it's not a table
+                            table.insert(names, tostring(enemy.Name))
                         end
                     end
                 end
@@ -199,8 +201,9 @@ local EnemyDropdown = MainTab:CreateDropdown({
     CurrentOption = enemyNames[1],
     Flag = "EnemyToFarm",
     Callback = function(Value)
-        selectedEnemy = Value
-        if Value == "No enemies found" then
+        -- Ensure Value is a string
+        selectedEnemy = tostring(Value)
+        if selectedEnemy == "No enemies found" then
             Rayfield:Notify({
                 Title = "No Enemies Found",
                 Content = "Try refreshing the list or join a game with enemies",
@@ -209,7 +212,7 @@ local EnemyDropdown = MainTab:CreateDropdown({
         else
             Rayfield:Notify({
                 Title = "Enemy Selected",
-                Content = "Selected: " .. Value,
+                Content = "Selected: " .. tostring(selectedEnemy),
                 Duration = 2,
             })
         end
@@ -227,7 +230,7 @@ local FarmingToggle = MainTab:CreateToggle({
             if selectedEnemy and selectedEnemy ~= "No enemies found" then
                 Rayfield:Notify({
                     Title = "Farming Started",
-                    Content = "Now farming: " .. selectedEnemy,
+                    Content = "Now farming: " .. tostring(selectedEnemy),
                     Duration = 3,
                 })
                 -- Start farming loop
